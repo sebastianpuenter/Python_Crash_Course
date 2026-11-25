@@ -12,3 +12,6 @@ print(Fore.WHITE + Back.BLUE + 'White text on a blue background')
 
 # Apply text styling (e.g., BRIGHT)
 print(Style.BRIGHT + Fore.YELLOW + 'This is bright yellow text')
+
+
+

@@ -5,7 +5,7 @@ Cambios:
 3. Se ordenan los cursos ingresados en orden alfabético.
 4. Se agrega la opción de datos del estudiante (nombre, grado, jornada)
 
-Pendiente: definir ordenar info
+Pendiente:
 
 Futuro:
 informe pdf
@@ -19,8 +19,14 @@ import pandas as pd
 import random
 import matplotlib.pyplot as plt
 import termplotlib as tpl
-# para quitar tildes y ordenar alfabeticamente una lista
+# para quitar tildes y poder ordenar alfabeticamente una lista
 from text_unidecode import unidecode
+
+# Módulos para crear pdfs
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
 
 # Lista vacia para acumular los registros
 registros = []
@@ -145,7 +151,7 @@ def borrar_cursos() -> None:
 # -----------------------------------------------------------------------------
 def ordenar_datos():
     """
-    Ordenar registro y dataframe con los cursos ingresados
+    Ordenar alfabéticamente registro y dataframe con los cursos ingresados
     """
 
     # Ordenar el registro alfabéticamente
@@ -239,13 +245,12 @@ def iniciar_dataframe():
 # -----------------------------------------------------------------------------
 # Graficar Curos
 # -----------------------------------------------------------------------------
-def graficar_cursos():
+def menu_graficar():
     """"Se grafica el promedio de los cursos registrado tanto en la terminal
     como en una figura con formato.
     """
 
     global escala
-    global estudiante
 
     print('\n=== Gráfica Promedios ===\n')
 
@@ -254,9 +259,7 @@ def graficar_cursos():
     
     else:
         nombre_cursos: list = []; promedio_cursos: list = []; niveles_cursos = []
-
         # se obtiene lista de nombres de cursos, promedios y nivel de desempeño
-
         for registro in registros:
             nombre_cursos.append(registro['Nombre'].title())
             promedio_cursos.append(registro['Promedio'])
@@ -299,7 +302,7 @@ def graficar_cursos():
         plt.axhspan(escala*0.9, escala, facecolor='#008860', alpha=0.1, label=f'Superior ({escala*0.9} - {escala})')
 
         # Personalizar el gráfico
-        titulo_grafico = f'Promedio de Cursos: {mostrar_estudiante()}'
+        titulo_grafico = f'Promedio de Cursos: {mostrar_estudiante()[1]}'
         plt.title(titulo_grafico, fontsize=14, fontweight='bold')
         plt.xlabel('Cursos', fontsize=12)
         plt.ylabel('Promedio', fontsize=12)
@@ -317,11 +320,23 @@ def graficar_cursos():
         # Ajustar diseño y mostrar
         plt.tight_layout()
         #plt.grid()
-        plt.show()
+
+        # Guardar imagen en archivo
+        nombre_sin_espacios = mostrar_estudiante()[1].replace(' ', '_')
+        ruta_grafica = f'grafica_notas_{nombre_sin_espacios}.png'
+        plt.savefig(ruta_grafica)
+        #plt.show()
+        plt.close()
 
 
     input('\nPulsa Enter para continuar...')
     os.system('clear')
+
+
+# ------
+def grafica_curso():
+    
+
 
 
 # -----------------------------------------------------------------------------
@@ -345,7 +360,7 @@ def configurar_escala():
 def menu_estudiantes():
 
     print('\n=== Datos Estudiante ===\n')
-    mostrar_estudiante()
+    print(mostrar_estudiante()[0])
     print('\n1. Editar')
     print('2. Salir')
     opcion_estudiante = pedir_numero('Opción: ',1,2)
@@ -402,17 +417,26 @@ def hay_estudiante() -> bool:
 def mostrar_estudiante() -> str:
 
     global estudiante
+
     if hay_estudiante():
         info_estudiante = (
             f'{estudiante['Nombres'].title()} {estudiante['Apellidos'].title()} '
             f'{estudiante["Grado"]}-{estudiante["Grupo"]} '
             f'J{estudiante["Jornada"].title()}'
         )
+        nombre_corto = (
+            f'{estudiante["Nombres"].split()[0].title()} '
+            f'{estudiante["Apellidos"].split()[0].title()} '
+            f'{estudiante["Grado"]}-{estudiante["Grupo"]} '
+            f'J{estudiante["Jornada"].title()}'
+        )
+
     else:
-        info_estudiante = 'Sin datos.'
+        info_estudiante = 'Sin datos Estudiante'
+        nombre_corto = ''
     
-    print(f'Estudiante: {info_estudiante}')
-    return info_estudiante
+    #print(f'Estudiante: {info_estudiante}')
+    return info_estudiante, nombre_corto
 
 
 # -----------------------------------------------------------------------------
@@ -459,9 +483,96 @@ def mostrar_menu():
     print("2. Ver Registros")
     print("3. Datos Estudiantes")
     print("4. Graficar")
-    print("5. Borrar Cursos")
-    print("6. Salir")
+    print("5. Generar Informe")
+    print("6. Borrar Cursos")
+    print("7. Salir")
     print("="*25)
+
+
+# -----------------------------------------------------------------------------
+# Generar Informe
+# -----------------------------------------------------------------------------
+def generar_informe():
+
+    if len(registros) == 0:
+        print('\nSin cursos registrados')
+        input('\nPulsa Enter para continuar...')
+        os.system('clear')
+        return
+    
+    # Información necesaria para el informe
+    # se obtiene lista de nombres de cursos, promedios y nivel de desempeño
+    nombre_cursos: list = []; promedio_cursos: list = []
+    nivel_cursos: list = []; aprobacion_cursos : list = []
+    notas_cursos: list = []
+    for registro in registros:
+        nombre_cursos.append(registro['Nombre'].title())
+        promedio_cursos.append(registro['Promedio'])
+        notas_cursos.append(registro['Nota Periodos'])
+        nivel_cursos.append(registro['Nivel'])
+        aprobacion_cursos.append(registro['Aprobación'])
+    total_cursos = len(registros)
+    total_cursos_aprobados = aprobacion_cursos.count('aprobado')
+    total_cursos_reprobados = aprobacion_cursos.count('reprobado')
+    
+    # Crear el documento PDF
+    pdf_path = 'informe_notas.pdf'
+    doc = SimpleDocTemplate(
+        pdf_path, pagesize=letter,
+        rightMargin=50, leftMargin=50,
+        topMargin=50, bottomMargin=50
+    )
+
+    # Estilos
+    estilos = getSampleStyleSheet()
+    titulo_estilo = ParagraphStyle('Title', parent=estilos['Heading1'])
+    subtitulo_estilo = ParagraphStyle('Subtitle', parent=estilos['Heading2'], spaceBefore=4)
+    texto_estilo = ParagraphStyle('Normal', parent=estilos['Normal'], fontSize=12, spaceAfter=8)
+    infocurso_estilo = ParagraphStyle('curso', parent=estilos['Normal'], fontSize=12, spaceAfter=6)
+    
+    # Elementos del PDF
+    elementos = []
+    
+    # Título
+    elementos.append(Paragraph("Informe de Rendimiento Académico", titulo_estilo))
+
+    # Datos Esudiante
+    elementos.append(Paragraph(f'Estudiante: {mostrar_estudiante()[0]}', subtitulo_estilo))
+    elementos.append(Spacer(1, 10))
+
+    # Texto con todas las notas
+    elementos.append(Paragraph("A continuación, se presenta el detalle de las calificaciones por asignatura:", texto_estilo))
+    elementos.append(Spacer(1, 10))
+    
+    for n in range(0, total_cursos):
+        if aprobacion_cursos[n] == 'aprobado':
+            color = 'green'
+        else:
+            color = 'red'
+        info_curso = (
+            f'<b>{n+1}. <font color={color}>{nombre_cursos[n].title()}</font>: </b>'
+            f'Promedio: {promedio_cursos[n]}, '
+            f'{aprobacion_cursos[n].title()}-'
+            f'{nivel_cursos[n].title()}. '
+            f'Nota Periodos: {notas_cursos[n]}' 
+        )
+        elementos.append(Paragraph(info_curso, infocurso_estilo))
+        n+=1
+    
+    linea = (
+        f'<font color=gray><i>Total Cursos: {total_cursos}, '
+        f'Total Cursos Aprobados: {total_cursos_aprobados}, '
+        f'Total Cursos Reprobados: {total_cursos_reprobados}</i></font>'
+    )
+    elementos.append(Spacer(1,8))
+    elementos.append(Paragraph(linea, infocurso_estilo))
+
+    # Construir PDF
+    doc.build(elementos)
+    print("¡PDF generado con éxito!")
+
+    input('\nPulsa Enter para continuar...')
+    os.system('clear')
 
 
 # ======================================
@@ -471,7 +582,7 @@ def degly():
     global escala
     registros.clear()
 
-    print('Crear Cursos de Prueba')
+    print('\nCrear Cursos de Prueba')
     escala = int(input('Define escala: '))
 
     cursos_prueba = ['tecnología', 'física', 'química', 'ética', 'ciencias', 'ártes', 'español']
@@ -497,9 +608,8 @@ def degly():
         }
         registros.append(reg_aux)
 
-        # Ordenar el registro alfabéticamente
-        registros.sort(key=lambda x: unidecode(x['Nombre']))
-
+    # Ordenar el registro alfabéticamente
+    registros.sort(key=lambda x: unidecode(x['Nombre']))
     global df_cursos
     df_cursos = pd.DataFrame(registros)
     
@@ -519,7 +629,7 @@ def inicio():
     while True:
 
         mostrar_menu()
-        mostrar_estudiante()
+        print('Estudiante:', mostrar_estudiante()[0])
         ordenar_datos()
         ver_registros()
         
@@ -534,10 +644,12 @@ def inicio():
             case '3':
                 menu_estudiantes()
             case '4':
-                graficar_cursos()
+                menu_graficar()
             case '5':
-                borrar_cursos()
+                generar_informe()
             case '6':
+                borrar_cursos()
+            case '7':
                 print('\nHasta Pronto!...')
                 print('= Sebas PuenteR =\n')
                 break
